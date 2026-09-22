@@ -1,0 +1,187 @@
+مدل داده و قواعد سابقه
+نسخه دوم — به‌روزشده بر اساس نمونه شیمی ۲ مبتکران
+
+موجودیت‌های اصلی
+
+1. Subject
+- id
+- name
+- grade
+- رشته
+
+2. Book
+- id
+- subject_id
+- publisher
+- title
+- grade
+- edition/year
+- notes
+
+3. BookNode
+برای نمایش ساختار اختصاصی هر کتاب:
+- id
+- book_id
+- parent_id
+- node_type
+- title
+- order_index
+
+node_type می‌تواند شامل chapter، section، subsection، mixed_tests، checkup_exam، comprehensive_exam، entrance_exam و موارد دیگر باشد.
+
+4. Topic
+مبحث آموزشی مستقل از ساختار کتاب:
+- id
+- subject_id
+- parent_id
+- title
+- status
+
+5. Question
+- id (شناسه داخلی یکتا)
+- book_id
+- book_node_id
+- display_number
+- correct_answer
+- publisher_difficulty
+- active/archive state
+
+6. QuestionTopic
+رابط چندبه‌چند:
+- question_id
+- topic_id
+- relation_type
+
+7. UserQuestionFlag
+- question_id
+- important
+- hard
+
+8. QuestionAttempt
+هر بار حل جدید:
+- id
+- question_id
+- user_answer
+- result
+- spent_seconds
+- attempted_at
+- source
+
+9. PreviousQuestionEntry
+برای سابقه تست‌های قبل از راه‌اندازی سیستم:
+- id
+- question_id
+- user_answer
+- result
+- imported_at
+- import_batch
+- note
+
+در این بخش تاریخ حل و زمان حل اجباری نیستند.
+
+10. TeachingUnit
+- topic_id
+- taught_status
+- taught_at
+- notes
+
+11. TeachingTestGoal
+- topic_id
+- target_count
+- period/goal window
+- notes
+
+12. Exam
+تعریف آزمون:
+- id
+- title
+- exam_type
+- date/planned_date
+- notes
+
+13. ExamTopic
+- exam_id
+- topic_id
+
+14. ExamQuestion
+- exam_id
+- question/order
+- topic_id در صورت نیاز
+- correct_answer
+
+15. ExamAttempt
+هر اجرای مستقل آزمون:
+- id
+- exam_id
+- started_at
+- finished_at
+- result summary
+
+16. ExamAnswer
+- exam_attempt_id
+- exam_question_id
+- user_answer
+- result
+- spent_seconds در صورت نیاز
+
+17. ExamAsset
+- exam_id یا exam_question_id
+- file type
+- file path/reference
+- metadata
+برای PDF و تصویر سؤال.
+
+18. FutureExamPlan
+- exam/date
+- selected topics
+- target
+- preparation status
+- readiness estimate
+- generated review/work items
+
+19. ReviewItem
+- question_id یا topic_id
+- reason(s)
+- priority
+- state
+- created_at
+- resolved_at
+
+قواعد مهم
+
+قاعده ۱ — شماره تست
+display_number فقط شماره نمایشی است و یکتا نیست.
+مثلاً در شیمی ۲ مبتکران شماره تست در هر فصل از ۱ شروع می‌شود.
+شناسه واقعی Question.id باید یکتا باشد.
+
+قاعده ۲ — مکان تست
+محل تست بخشی از هویت محتوایی آن است و باید در BookNode ثبت شود.
+
+قاعده ۳ — ساختار کتاب و مبحث
+BookNode نشان می‌دهد تست در کجای کتاب قرار دارد.
+Topic نشان می‌دهد تست از نظر آموزشی به چه مبحثی مربوط است.
+این دو مفهوم نباید ادغام شوند.
+
+قاعده ۴ — تست مخلوط
+یک مجموعه «تست‌های مخلوط» می‌تواند به چند Topic مرتبط باشد و نباید الزاماً خودش Topic شود.
+
+قاعده ۵ — آزمون چکاپ/جامع
+اینها گره یا مجموعه ارزیابی هستند و فقط در صورت وجود رابطه آموزشی صریح به Topicها متصل می‌شوند.
+
+قاعده ۶ — سختی
+publisher_difficulty، user_hard و user_important سه مفهوم جدا هستند.
+
+قاعده ۷ — تاریخچه
+هر تلاش جدید QuestionAttempt جدید می‌سازد.
+رکورد قبلی تغییر یا حذف نمی‌شود.
+
+قاعده ۸ — سابقه قبلی
+PreviousQuestionEntry برای ورود حل‌های قدیمی است و با QuestionAttempt عادی یکی نیست.
+
+قاعده ۹ — آزمون
+Exam تعریف آزمون است.
+ExamAttempt اجرای آزمون است.
+یک Exam می‌تواند چند ExamAttempt داشته باشد.
+
+قاعده ۱۰ — محاسبه آمار
+آمار باید از روی داده‌های خام و تاریخچه محاسبه شود، نه با جایگزین کردن یک مقدار خلاصه به جای سوابق.
