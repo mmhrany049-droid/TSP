@@ -83,7 +83,8 @@ class Response:
     content_type: str = "application/json; charset=utf-8"
     headers: dict[str, str] = field(default_factory=dict)
     file_path: Path | None = None
-    download_name: str | None = None
+    download_name: str | None = None      # اگر مقدار داشته باشد، فایل «دانلود» می‌شود
+    display_name: str | None = None       # نام نمایشی دلخواه (فارسی) برای فایل‌های درون‌خطی
 
 
 def json_response(payload, status: int = 200) -> Response:
@@ -173,9 +174,16 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(data)))
             disposition = "attachment" if response.download_name else "inline"
-            name = response.download_name or path.name
-            # نام فایل فارسی: هدر HTTP باید ASCII باشد، پس نام UTF-8 جداگانه فرستاده می‌شود
-            ascii_name = name.encode("ascii", "ignore").decode("ascii") or "file"
+            name = response.download_name or response.display_name or path.name
+            # نام فایل فارسی: هدر HTTP باید ASCII باشد، پس نام UTF-8 جداگانه (RFC 5987)
+            # فرستاده می‌شود و نسخه ASCII فقط برای مرورگرهای قدیمی است.
+            extension = name.rsplit(".", 1)[-1] if "." in name else ""
+            ascii_stem = re.sub(r"[^A-Za-z0-9_-]+", "-", name.rsplit(".", 1)[0]).strip("-")
+            if not ascii_stem:
+                ascii_stem = "file"
+            ascii_name = (f"{ascii_stem}.{extension}"
+                          if extension and extension.isascii() and extension.isalnum()
+                          else ascii_stem)
             encoded = quote(name, safe="")
             self.send_header("Content-Disposition",
                              f'{disposition}; filename="{ascii_name}"; '

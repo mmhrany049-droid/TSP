@@ -66,7 +66,7 @@ python3 run.py --db /path/to/tsp.db --open
 ## ۴. آزمون‌ها
 
 ```bash
-python3 -m unittest discover -s tests -p "test_*.py"   # ۵۷ آزمون سرتاسری API
+python3 -m unittest discover -s tests -p "test_*.py"   # ۵۹ آزمون سرتاسری API
 python3 tests/test_api.py -v                            # اجرای مستقیم با نمایش جزئیات
 node tests/ui_smoke.mjs http://127.0.0.1:8787           # آزمون دودی رابط کاربری (اختیاری، نیاز به jsdom)
 ```

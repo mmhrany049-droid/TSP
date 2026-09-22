@@ -234,18 +234,21 @@ def performance(db: Database, level: str = "overall", *, subject_id: int | None 
         joins.append("LEFT JOIN subject s ON s.id = b.subject_id")
     if level in ("book_node", "question"):
         joins.append("LEFT JOIN book_node bn ON bn.id = q.book_node_id")
+    # کلید گروه‌بندی باید «یک» عبارت باشد تا شمارش هر گروه درست باشد
+    # (مثلاً گروه‌بندی بر پایه نام ناشر به‌جای شناسه کتاب، کتاب‌ها را ادغام می‌کرد).
+    extra_columns = ""
     if level == "subject":
-        group, labels = "s.id, s.name", "نام درس"
+        group, extra_columns, labels = "s.id", "s.name", "نام درس"
     elif level == "book":
-        group, labels = "b.id, b.title, b.publisher", "کتاب"
+        group, extra_columns, labels = "b.id", "b.title, b.publisher", "کتاب"
     elif level == "book_node":
-        group, labels = "bn.id, bn.title, bn.node_type", "محل در کتاب"
+        group, extra_columns, labels = "bn.id", "bn.title, bn.node_type", "محل در کتاب"
     elif level == "topic":
         joins.append("JOIN question_topic qt ON qt.question_id = q.id")
         joins.append("JOIN topic t ON t.id = qt.topic_id")
-        group, labels = "t.id, t.title", "مبحث"
+        group, extra_columns, labels = "t.id", "t.title", "مبحث"
     elif level == "question":
-        group, labels = "q.id, q.code, q.display_number", "تست"
+        group, extra_columns, labels = "q.id", "q.code, q.display_number", "تست"
     elif level in ("day", "week", "month"):
         fmt = {"day": "%Y-%m-%d", "week": "%Y-W%W", "month": "%Y-%m"}[level]
         group, labels = f"strftime('{fmt}', a.attempted_at)", "بازه زمانی"
@@ -279,11 +282,12 @@ def performance(db: Database, level: str = "overall", *, subject_id: int | None 
                                      topic_id=topic_id, book_node_id=book_node_id)
         row.update(extra)
         return {"level": level, "totals": _finalize_metrics(row), "rows": []}
+    extra_sql = f", {extra_columns}" if extra_columns else ""
     rows = db.query(
-        f"""SELECT {group} AS group_key, {METRIC_SQL}
+        f"""SELECT {group} AS group_key{extra_sql}, {METRIC_SQL}
               FROM question_attempt a {' '.join(joins)}
              WHERE {where_sql}
-             GROUP BY group_key
+             GROUP BY {group}
              ORDER BY attempts DESC LIMIT ?""", params + [limit])
     for row in rows:
         _finalize_metrics(row)

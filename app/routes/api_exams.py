@@ -162,8 +162,12 @@ def register() -> None:
                                      (id_param(request),))
         if not asset:
             raise NotFound("فایل پیوست یافت نشد")
+        # نام اصلی فارسی فایل هم در حالت نمایش و هم در حالت دانلود استفاده می‌شود
+        original = asset["original_name"] or None
+        wants_download = bool(request.q("download"))
         return Response(file_path=config.DATA_DIR / asset["file_path"],
-                        download_name=request.q("download") and asset["original_name"] or None)
+                        download_name=original if wants_download else None,
+                        display_name=original)
 
 
 def _int_or_none(value):

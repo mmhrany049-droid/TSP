@@ -62,6 +62,13 @@ class ApiClient:
     def get(self, path, **kwargs):
         return self.request("GET", path, **kwargs)
 
+    def get_with_headers(self, path):
+        """پاسخ خام همراه با هدرها (برای بررسی Content-Disposition)."""
+        request = urllib.request.Request(self.base + path, method="GET")
+        with urllib.request.urlopen(request) as response:
+            body = response.read()
+            return response.status, body, dict(response.headers)
+
     def post(self, path, body=None, **kwargs):
         return self.request("POST", path, body if body is not None else {}, **kwargs)
 
@@ -750,6 +757,23 @@ class ExamTests(TSPTestCase):
         self.assertEqual(history["items"][0]["source"], "exam")
         self.assertEqual(history["items"][0]["exam_attempt_id"], attempt["id"])
 
+    def test_asset_download_uses_rfc5987_filename(self):
+        """نام فارسی فایل باید در هدر Content-Disposition کدگذاری شود."""
+        exam = self.ok(self.client.post("/api/exams", {"title": "آزمون هدر"}), 201)
+        png = b"\x89PNG\r\n\x1a\n" + b"7" * 16
+        asset = self.ok(self.client.multipart(f"/api/exams/{exam['id']}/assets",
+                                              "صورت سؤال.png", png), 201)
+        status, body, headers = self.client.get_with_headers(f"/api/files/{asset['id']}")
+        self.assertEqual(status, 200)
+        self.assertEqual(body, png)
+        disposition = headers["Content-Disposition"]
+        self.assertIn("filename*=UTF-8''", disposition)
+        self.assertIn("%D8%B5", disposition)          # «ص» کدگذاری‌شده
+        self.assertIn('filename="file.png"', disposition)
+        self.assertTrue(disposition.startswith("inline"))
+        _, _, download = self.client.get_with_headers(f"/api/files/{asset['id']}?download=1")
+        self.assertTrue(download["Content-Disposition"].startswith("attachment"))
+
     def test_breakdown_by_topic_and_regrade(self):
         exam = self.ok(self.client.post("/api/exams", {"title": "تحلیل"}), 201)
         self.ok(self.client.post(f"/api/exams/{exam['id']}/questions", {
@@ -930,6 +954,37 @@ class AnalyticsTests(TSPTestCase):
         self.assertEqual(series["total_attempts"], 4)
         self.assertTrue(series["series"])
 
+    def test_performance_groups_by_identity_not_label(self):
+        """گروه‌بندی تحلیل باید بر پایه شناسه باشد؛ نه شماره نمایشی یا نام ناشر.
+
+        دو کتاب از یک ناشر با تست‌های هم‌شماره نباید در گزارش ادغام شوند.
+        """
+        second_book = self.make_book("کتاب تحلیل دوم")   # همان ناشر پیش‌فرض
+        second_node = self.make_node(second_book["id"], "فصل ۱", "chapter")
+        second_question = self.make_question(second_node["id"], "1", "1")
+        first_question = self.make_question(self.section["id"], "1", "2")
+        for question in (first_question, second_question):
+            self.ok(self.client.post("/api/attempts", {
+                "question_id": question["id"], "user_answer": question["correct_answer"],
+            }), 201)
+
+        books = self.ok(self.client.get("/api/analytics/performance?level=book"))["rows"]
+        self.assertEqual(len(books), 2)
+        for row in books:
+            self.assertEqual(row["attempts"], 1)
+        self.assertEqual(sorted(row["group_key"] for row in books),
+                         sorted([self.book["id"], second_book["id"]]))
+
+        questions = self.ok(self.client.get(
+            "/api/analytics/performance?level=question"))["rows"]
+        self.assertEqual(len(questions), 2)
+        self.assertEqual(sorted(row["group_key"] for row in questions),
+                         sorted([first_question["id"], second_question["id"]]))
+        for row in questions:
+            self.assertEqual(row["attempts"], 1)
+            self.assertEqual(row["questions"], 1)
+            self.assertEqual(row["display_number"], "1")
+
     def test_dashboard_composition(self):
         self.ok(self.client.post("/api/attempts", {
             "question_id": self.questions[0]["id"], "user_answer": "1"}), 201)
@@ -965,9 +1020,7 @@ class DataToolsTests(TSPTestCase):
         self.assertIn("checks", report)
         ids = [check["id"] for check in report["checks"]]
         for expected in ("duplicate_display_number", "assessment_as_topic",
-                         "publisher_vs_user", ) if False else (
-                "duplicate_display_number", "assessment_as_topic",
-                "question_without_key", "orphan_review_items"):
+                         "question_without_key", "orphan_review_items"):
             self.assertIn(expected, ids)
 
     def test_export_import_roundtrip(self):
