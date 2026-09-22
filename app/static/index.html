@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TSP — سامانه مدیریت تست و آمادگی آزمون</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%232563eb'/><text y='68' x='50' text-anchor='middle' font-size='52' fill='white' font-family='sans-serif'>T</text></svg>">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div id="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">TSP</div>
+      <div class="brand-text">
+        <strong>مدیریت تست</strong>
+        <span>نسخه <span id="app-version">۰.۱</span></span>
+      </div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="sidebar-footer">
+      <label class="field-compact">
+        <span>درس فعال</span>
+        <select id="subject-filter"><option value="">همه درس‌ها</option></select>
+      </label>
+      <button class="btn btn-ghost btn-sm" data-action="global:openSettings">داده و پشتیبان</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn menu-btn" data-action="global:toggleMenu" title="منو">☰</button>
+      <div class="topbar-title">
+        <h1 id="page-title">داشبورد</h1>
+        <p id="page-subtitle" class="muted"></p>
+      </div>
+      <div class="topbar-actions">
+        <input id="global-search" class="input search" type="search"
+               placeholder="جست‌وجوی کد تست، شماره، مبحث…">
+        <button class="btn btn-primary" data-action="global:quickEntry">ثبت سؤال</button>
+      </div>
+    </header>
+
+    <main id="view" class="view" aria-live="polite"></main>
+  </div>
+</div>
+
+<div id="modal-root" class="modal-root" hidden></div>
+<div id="toasts" class="toasts"></div>
+
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>
