@@ -2,6 +2,7 @@ import { PrismaLibSQL } from "@prisma/adapter-libsql";
 import { PrismaClient } from "@prisma/client";
 
 import { resolveDatabaseUrl } from "./database-url";
+import { logEnvDiagnostics } from "./env";
 
 /**
  * نمونهٔ یگانهٔ PrismaClient.
@@ -17,6 +18,9 @@ import { resolveDatabaseUrl } from "./database-url";
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function createPrismaClient(): PrismaClient {
+  // پیش از ساخت اتصال، تنظیمات محیطی خوانده و پیام‌های راهنما یک‌بار چاپ می‌شوند.
+  logEnvDiagnostics();
+
   const adapter = new PrismaLibSQL({ url: resolveDatabaseUrl() });
 
   return new PrismaClient({

@@ -4,19 +4,24 @@
   "private": true,
   "description": "TSP — سامانه مدیریت تست، مطالعه و آمادگی آزمون (رشته ریاضی-فیزیک)",
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
+    "dev": "node scripts/prepare-project.mjs && node scripts/dev.mjs",
+    "dev:open": "node scripts/prepare-project.mjs && node scripts/dev.mjs --open",
+    "build": "node scripts/prepare-project.mjs --no-db && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test:unit": "node --experimental-strip-types --test lib/*.test.ts",
+    "test:unit": "node --experimental-strip-types --test lib/*.test.ts tests/*.test.ts",
     "db:setup": "node scripts/db-migrate.mjs setup",
+    "db:check": "node scripts/db-migrate.mjs check",
     "db:deploy": "node scripts/db-migrate.mjs deploy",
     "db:reset": "node scripts/db-migrate.mjs reset",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "init:env": "node scripts/init-env.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "prepare": "node scripts/prepare-project.mjs",
+    "postinstall": "node scripts/postinstall.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",

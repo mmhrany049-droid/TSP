@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, BookOpen, ListChecks, RotateCcw, ShieldCheck } from "lucide-react";
 
+import { DatabaseNotice } from "@/components/db-notice";
+import { EnvNotice } from "@/components/env-notice";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { auth } from "@/lib/auth";
 import { APP_VERSION } from "@/lib/constants";
@@ -42,6 +44,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <EnvNotice />
+      <DatabaseNotice />
+
       <div className="space-y-2">
         <h1 className="text-xl font-semibold text-slate-900">{name} عزیز، خوش آمدی 👋</h1>
         <p className="text-sm text-slate-500">

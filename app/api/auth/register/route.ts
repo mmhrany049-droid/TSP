@@ -63,8 +63,17 @@ export async function POST(
 
     console.error("[ثبت‌نام] خطای غیرمنتظره:", error);
 
+    const message = error instanceof Error ? error.message : String(error);
+    const isDatabaseProblem = /prisma|database|sqlite|no such table|P1003|P2021|SQLITE_/i.test(message);
+
     return NextResponse.json(
-      { ok: false, error: "ثبت‌نام انجام نشد؛ لطفاً دوباره تلاش کنید." },
+      {
+        ok: false,
+        error: isDatabaseProblem
+          ? "پایگاه داده آماده نیست. دستور `npm run db:setup` را اجرا کنید و دوباره تلاش کنید."
+          : "ثبت‌نام انجام نشد؛ لطفاً دوباره تلاش کنید.",
+        ...(isDatabaseProblem ? { fieldErrors: {} } : {}),
+      },
       { status: 500 },
     );
   }

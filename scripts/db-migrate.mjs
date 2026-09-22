@@ -2,9 +2,10 @@
 /**
  * ابزار پایگاه دادهٔ TSP.
  *
- *   npm run db:setup     → ساخت/هم‌گام‌سازی پایگاه دادهٔ محلی + تولید کلاینت Prisma
- *   npm run db:deploy    → اعمال مهاجرت‌های موجود در prisma/migrations
- *   npm run db:reset     → پاک‌کردن پایگاه دادهٔ محلی و ساخت دوبارهٔ آن (بی‌بازگشت)
+ *   npm run db:setup    → ساخت/هم‌گام‌سازی پایگاه دادهٔ محلی + تولید کلاینت Prisma
+ *   npm run db:check    → فقط بررسی وضعیت (بدون تغییر چیزی)
+ *   npm run db:deploy   → اعمال مهاجرت‌های موجود در prisma/migrations
+ *   npm run db:reset    → پاک‌کردن پایگاه دادهٔ محلی و ساخت دوبارهٔ آن (بی‌بازگشت)
  *
  * چرا این ابزار لازم است؟
  *   پروژه از «موتور طرح‌وارهٔ جاوااسکریپتی» Prisma استفاده می‌کند تا به باینری بومی
@@ -18,146 +19,58 @@
  * دارد این فرمان را اجرا کنید (موتور کلاسیک به‌طور خودکار دانلود می‌شود):
  *   npx prisma migrate dev --name migration_name
  */
-import { spawnSync } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
+import { ensureAuthSecretInEnvFile, ensureEnvFile } from "./lib/env-file.mjs";
+import {
+  baselineMigrations,
+  ensureMigrationsTable,
+  getDatabaseStatus,
+  removeDatabaseFiles,
+  resolveDatabaseFilePath,
+  runPrisma,
+} from "./lib/db-status.mjs";
 
-import { createClient } from "@libsql/client";
-import "dotenv/config";
+const COMMANDS = new Set(["setup", "check", "deploy", "reset"]);
 
-const MIGRATIONS_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
-  "id" TEXT PRIMARY KEY NOT NULL,
-  "checksum" TEXT NOT NULL,
-  "finished_at" DATETIME,
-  "migration_name" TEXT NOT NULL,
-  "logs" TEXT,
-  "rolled_back_at" DATETIME,
-  "started_at" DATETIME NOT NULL DEFAULT current_timestamp,
-  "applied_steps_count" INTEGER NOT NULL DEFAULT 0
-)`;
+/** ساخت فایل `.env` در صورت نبود، تا اجرا حتی روی سیستم تازه هم بی‌خطا باشد. */
+function prepareEnvFile() {
+  const env = ensureEnvFile({ create: true });
 
-const COMMANDS = new Set(["setup", "deploy", "reset"]);
-
-/** مسیر فایل پایگاه دادهٔ محلی؛ برای پایگاه دادهٔ شبکه‌ای `null` است. */
-function resolveDatabasePath() {
-  const url = process.env.DATABASE_URL ?? "file:./prisma/dev.db";
-
-  if (!url.startsWith("file:")) {
-    return null;
+  if (env.created) {
+    console.log("• فایل .env ساخته شد (شامل DATABASE_URL و AUTH_SECRET).");
+  } else if (env.missingAuthSecret) {
+    ensureAuthSecretInEnvFile();
+    console.log("• کلید AUTH_SECRET به فایل .env اضافه شد.");
   }
 
-  const filePath = url.slice("file:".length);
-
-  return path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
+  return env;
 }
 
-/** ساخت جدول `_prisma_migrations` (همان جدولی که خود Prisma می‌سازد). */
-async function ensureMigrationsTable() {
-  const databasePath = resolveDatabasePath();
+/** نمایش وضعیت خوانا از پایگاه داده. */
+async function printStatus() {
+  const status = await getDatabaseStatus();
 
-  if (!databasePath) {
-    return;
+  if (status.path) {
+    console.log(`• فایل پایگاه داده: ${status.path}`);
   }
 
-  fs.mkdirSync(path.dirname(databasePath), { recursive: true });
-
-  const client = createClient({ url: `file:${databasePath}` });
-
-  try {
-    await client.execute(MIGRATIONS_TABLE_SQL);
-  } finally {
-    client.close();
-  }
-}
-
-/**
- * ثبت مهاجرت‌های موجود به‌عنوان «اعمال‌شده».
- *
- * چون در محیط توسعه ساختار پایگاه داده با `db push` ساخته می‌شود، باید به Prisma
- * بگوییم این مهاجرت‌ها قبلاً اعمال شده‌اند؛ وگرنه بار بعد `db:deploy` می‌خواهد
- * همان جدول‌ها را دوباره بسازد و خطای «جدول از قبل وجود دارد» می‌دهد.
- */
-async function baselineMigrations() {
-  const databasePath = resolveDatabasePath();
-  const migrationsDirectory = path.join(process.cwd(), "prisma", "migrations");
-
-  if (!databasePath || !fs.existsSync(migrationsDirectory)) {
-    return [];
+  if (!status.tables.length) {
+    console.log("• پایگاه داده هنوز ساخته نشده است.");
+    return status;
   }
 
-  const folders = fs
-    .readdirSync(migrationsDirectory, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
+  console.log(`• جدول‌های موجود: ${status.tables.length}`);
 
-  if (folders.length === 0) {
-    return [];
+  if (status.ready) {
+    console.log("• همهٔ ۱۷ جدول برنامه موجودند ✔");
+  } else {
+    console.log(`• جدول‌های غایب: ${status.missingTables.join(", ")}`);
   }
 
-  const client = createClient({ url: `file:${databasePath}` });
-  const recorded = [];
-
-  try {
-    for (const folder of folders) {
-      const sqlPath = path.join(migrationsDirectory, folder, "migration.sql");
-
-      if (!fs.existsSync(sqlPath)) {
-        continue;
-      }
-
-      const already = await client.execute({
-        sql: 'SELECT 1 FROM "_prisma_migrations" WHERE "migration_name" = ? AND "finished_at" IS NOT NULL',
-        args: [folder],
-      });
-
-      if (already.rows.length > 0) {
-        continue;
-      }
-
-      const checksum = createHash("sha256").update(fs.readFileSync(sqlPath)).digest("hex");
-
-      await client.execute({
-        sql: `INSERT INTO "_prisma_migrations"
-                ("id", "checksum", "finished_at", "migration_name", "logs", "rolled_back_at", "started_at", "applied_steps_count")
-              VALUES (?, ?, ?, ?, NULL, NULL, ?, 1)`,
-        args: [randomUUID(), checksum, new Date().toISOString(), folder, new Date().toISOString()],
-      });
-
-      recorded.push(folder);
-    }
-  } finally {
-    client.close();
+  if (status.migrations.length > 0) {
+    console.log(`• مهاجرت‌های ثبت‌شده: ${status.migrations.join(", ")}`);
   }
 
-  return recorded;
-}
-
-/** ساخت پایگاه دادهٔ تازه: فایل قدیمی حذف می‌شود. */
-function removeDatabaseFiles() {
-  const databasePath = resolveDatabasePath();
-
-  if (!databasePath) {
-    throw new Error("db:reset فقط برای پایگاه دادهٔ محلی SQLite کار می‌کند");
-  }
-
-  for (const suffix of ["", "-journal", "-wal", "-shm"]) {
-    fs.rmSync(`${databasePath}${suffix}`, { force: true });
-  }
-}
-
-/** اجرای یک فرمان npx روی همهٔ سیستم‌عامل‌ها. */
-function run(args) {
-  const result = spawnSync("npx", args, {
-    stdio: "inherit",
-    shell: process.platform === "win32",
-  });
-
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-  }
+  return status;
 }
 
 async function main() {
@@ -168,38 +81,86 @@ async function main() {
     process.exit(1);
   }
 
+  if (command === "check") {
+    await printStatus();
+    return;
+  }
+
+  prepareEnvFile();
+
   if (command === "reset") {
-    removeDatabaseFiles();
-    console.log("پایگاه دادهٔ محلی پاک شد.");
+    const removedPath = removeDatabaseFiles();
+    console.log(`• پایگاه دادهٔ قبلی پاک شد: ${removedPath}`);
   }
 
   await ensureMigrationsTable();
 
   if (command === "deploy") {
-    run(["prisma", "migrate", "deploy"]);
+    const result = runPrisma(["migrate", "deploy", "--schema", "prisma/schema.prisma"]);
+
+    if (!result.ok && result.hint) {
+      console.error(`\n✖ اعمال مهاجرت‌ها انجام نشد.\n${result.hint}`);
+      process.exit(1);
+    }
   } else {
-    // در محیط توسعه، ساختار پایگاه داده با schema هم‌گام می‌شود
-    run(["prisma", "db", "push", "--skip-generate"]);
+    // در محیط توسعه، ساختار پایگاه داده با schema هم‌گام می‌شود.
+    const push = runPrisma(["db", "push", "--skip-generate", "--schema", "prisma/schema.prisma"]);
+
+    if (!push.ok) {
+      console.error(`\n✖ ساخت پایگاه داده انجام نشد.\n${push.hint ?? "خروجی بالا را ببینید."}`);
+      process.exit(1);
+    }
 
     const recorded = await baselineMigrations();
 
     if (recorded.length > 0) {
-      console.log(`\n${recorded.length} مهاجرت به‌عنوان اعمال‌شده ثبت شد: ${recorded.join(", ")}`);
+      console.log(`• ${recorded.length} مهاجرت به‌عنوان اعمال‌شده ثبت شد: ${recorded.join(", ")}`);
     }
   }
 
-  run(["prisma", "generate"]);
+  const generate = runPrisma(["generate", "--schema", "prisma/schema.prisma"]);
 
+  if (!generate.ok) {
+    console.error(`\n✖ تولید کلاینت Prisma انجام نشد.\n${generate.hint ?? "خروجی بالا را ببینید."}`);
+    process.exit(1);
+  }
+
+  const status = await getDatabaseStatus();
   const messages = {
-    setup: "پایگاه داده آماده است. می‌توانید `npm run dev` را اجرا کنید.",
+    setup: "پایگاه داده آماده است. حالا `npm run dev:open` را اجرا کنید.",
     deploy: "همهٔ مهاجرت‌های موجود اعمال شد.",
     reset: "پایگاه داده از نو ساخته شد.",
   };
+
+  if (command === "setup" || command === "reset") {
+    console.log(
+      `• جدول‌ها: ${status.tables.length}${status.ready ? " (همهٔ ۱۷ جدول برنامه) ✔" : ""}`,
+    );
+  }
 
   console.log(`\n✔ ${messages[command]}`);
 }
 
 main().catch((error) => {
-  console.error(error);
+  const filePath = (() => {
+    try {
+      return resolveDatabaseFilePath();
+    } catch {
+      return null;
+    }
+  })();
+
+  console.error("\n✖ خطای غیرمنتظره در ابزار پایگاه داده:");
+  console.error(error instanceof Error ? error.message : error);
+
+  if (filePath) {
+    console.error(`\nمسیر فایل پایگاه داده: ${filePath}`);
+  }
+
+  console.error(
+    "راه‌حل پیشنهادی: `npm install` را اجرا کنید، سپس `npm run db:setup`.\n" +
+      "اگر مشکل ادامه داشت، `npm run doctor` را اجرا کنید و خروجی آن را بفرستید.",
+  );
+
   process.exit(1);
 });

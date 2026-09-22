@@ -1,11 +1,46 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
+   قلم برنامه — «وزیرمتن» به‌صورت محلی (بدون هیچ درخواست اینترنتی)
+
+   چرا با @font-face و نه next/font/local؟
+   چون در next/font/local فایل‌ها در زمان «ساخت» به‌عنوان ماژول خوانده می‌شوند و اگر
+   فایل قلم نباشد، کل ساخت پروژه با خطای «Module not found» شکست می‌خورد. با
+   @font-face، نبودِ فایل فقط یعنی استفاده از قلم پیش‌فرض سیستم؛ هیچ‌وقت برنامه کرش
+   نمی‌کند. فایل‌ها در public/fonts قرار دارند و از مسیر /fonts/... سرو می‌شوند.
+   --------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: "Vazirmatn";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/vazirmatn-arabic-wght-normal.woff2") format("woff2");
+  /* نویسه‌های فارسی/عربی و ارقام فارسی */
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+200C-200D, U+2010-2011, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+@font-face {
+  font-family: "Vazirmatn";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/vazirmatn-latin-wght-normal.woff2") format("woff2");
+  /* حروف لاتین، ارقام و نشانه‌های پرکاربرد */
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ---------------------------------------------------------------------------
    طراحی پایهٔ TSP (فارسی و راست‌به‌چپ)
    --------------------------------------------------------------------------- */
 
 @theme {
-  --font-sans: var(--font-vazirmatn), system-ui, "Segoe UI", Tahoma, sans-serif;
+  /*
+   * واژهٔ نخست «Vazirmatn» است؛ اگر فایل قلم موجود نباشد، مرورگر خودش سراغ
+   * قلم‌های بعدی این فهرست می‌رود (بدون خطا و بدون صفحهٔ سفید).
+   */
+  --font-sans: "Vazirmatn", system-ui, "Segoe UI", Tahoma, Arial, sans-serif;
   --color-surface: #f8fafc;
 }
 

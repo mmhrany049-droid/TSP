@@ -1,6 +1,12 @@
 import type { NextAuthConfig } from "next-auth";
 import { NextResponse } from "next/server";
 
+import {
+  resolveAuthSecret,
+  resolveAuthSecretState,
+  warnAboutAuthSecretOnce,
+} from "./auth-secret";
+
 /**
  * تنظیمات پایهٔ احراز هویت (بدون وابستگی به پایگاه داده).
  *
@@ -23,9 +29,27 @@ export const LOGIN_PATH = "/login";
 /** عمر نشست: ۳۰ روز؛ برای یک اپلیکیشن مطالعهٔ روزانه کافی است. */
 export const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
+/*
+ * هشدار یک‌باره دربارهٔ کلید نشست.
+ * این فایل هم در میدل‌ور (Edge) و هم در سرور (Node) بار می‌شود، پس هشدار در هر دو
+ * محیط دیده می‌شود. تابع هیچ وابستگی‌ای به سیستم فایل ندارد و در Edge هم بی‌خطر است.
+ */
+warnAboutAuthSecretOnce();
+
 export const authConfig: NextAuthConfig = {
   // پشت پروکسی (پیش‌نمایش، میزبان ابری) هم کار کند.
   trustHost: true,
+  /*
+   * کلید امضای نشست.
+   *
+   *   • اگر AUTH_SECRET تنظیم شده باشد → همان.
+   *   • در حالت توسعه و بدون AUTH_SECRET → کلید موقت ثابت، تا برنامه بالا بیاید و
+   *     کوکی نوشته‌شده در Node برای میدل‌ور (Edge) هم معتبر باشد (جلوگیری از حلقهٔ
+   *     ریدایرکت).
+   *   • در حالت تولید و بدون AUTH_SECRET → undefined؛ NextAuth خطای رسمی می‌دهد و
+   *     `app/error.tsx` آن را به پیام فارسی «کلید تنظیم نشده» تبدیل می‌کند.
+   */
+  secret: resolveAuthSecret(),
   pages: {
     signIn: LOGIN_PATH,
     error: LOGIN_PATH,
@@ -40,10 +64,28 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     /**
      * تصمیم میدل‌ور: چه کسی اجازهٔ دیدن چه مسیری را دارد.
-     * بازگشت `false` یعنی «به صفحهٔ ورود منتقل شود».
+     *
+     * خروجی‌ها:
+     *   • `true`  → عبور بده.
+     *   • `NextResponse` → همین پاسخ برگردانده شود (ریدایرکت صریح).
+     *
+     * چرا به‌جای `false` ریدایرکت صریح برمی‌گردانیم؟ چون NextAuth در حالت «عبور
+     * دادن» بهتر می‌تواند با پاسخ‌های سفارشی کار کند و مقصد بازگشت (`callbackUrl`)
+     * را هم خودمان می‌سازیم تا مسیر درخواستی کاربر حفظ شود.
      */
     authorized({ request, auth }) {
       const { nextUrl } = request;
+
+      /*
+       * در حالت تولید، اگر کلید نشست تنظیم نشده باشد میدل‌ور تصمیم نمی‌گیرد و
+       * درخواست را رد می‌کند تا صفحه‌ها پیام فارسی راهنما را نشان دهند؛ چون در این
+       * وضعیت هیچ نشستی قابل اعتبارسنجی نیست و ریدایرکت‌کردن کاربر فقط او را در
+       * حلقه می‌اندازد.
+       */
+      if (resolveAuthSecretState().isMissingInProduction) {
+        return NextResponse.next();
+      }
+
       const isLoggedIn = Boolean(auth?.user);
       const isAuthRoute = AUTH_ROUTES.some((route) => nextUrl.pathname === route);
 
@@ -52,7 +94,19 @@ export const authConfig: NextAuthConfig = {
         return isLoggedIn ? NextResponse.redirect(new URL(DEFAULT_LOGIN_REDIRECT, nextUrl)) : true;
       }
 
-      return isLoggedIn;
+      if (isLoggedIn) {
+        return true;
+      }
+
+      // بازگشت به صفحهٔ ورود، همراه با مقصد درخواستی کاربر.
+      const loginUrl = new URL(LOGIN_PATH, nextUrl);
+      const requestedPath = `${nextUrl.pathname}${nextUrl.search}`;
+
+      if (requestedPath !== LOGIN_PATH) {
+        loginUrl.searchParams.set("callbackUrl", requestedPath);
+      }
+
+      return NextResponse.redirect(loginUrl);
     },
 
     /** افزودن شناسهٔ کاربر به توکن، تا در همهٔ درخواست‌ها در دسترس باشد. */

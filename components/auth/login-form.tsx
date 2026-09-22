@@ -19,7 +19,17 @@ import { loginSchema, zodFieldErrors } from "@/lib/validations";
  * نادرست بود، پیام فارسی همان‌جا زیر فرم بماند و کاربر به صفحهٔ خطای انگلیسی
  * هدایت نشود. پس از ورود موفق، مقصد `callbackUrl` (اگر امن باشد) باز می‌شود.
  */
-export function LoginForm({ callbackUrl = "/" }: { callbackUrl?: string }) {
+export function LoginForm({
+  callbackUrl = "/",
+  disabled = false,
+  disabledReason,
+}: {
+  callbackUrl?: string;
+  /** وقتی پایگاه داده آماده نیست، فرم غیرفعال می‌شود تا خطای مبهم نگیریم. */
+  disabled?: boolean;
+  /** توضیح فارسی دلیل غیرفعال بودن فرم. */
+  disabledReason?: string;
+}) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,6 +39,12 @@ export function LoginForm({ callbackUrl = "/" }: { callbackUrl?: string }) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (disabled) {
+      setFormError(disabledReason ?? "پایگاه داده آماده نیست؛ ابتدا دستور npm run db:setup را اجرا کنید.");
+      return;
+    }
+
     setFormError(null);
     setFieldErrors({});
 
@@ -91,7 +107,7 @@ export function LoginForm({ callbackUrl = "/" }: { callbackUrl?: string }) {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               aria-invalid={Boolean(fieldErrors.email)}
-              disabled={isPending}
+              disabled={isPending || disabled}
               required
             />
           </Field>
@@ -107,16 +123,16 @@ export function LoginForm({ callbackUrl = "/" }: { callbackUrl?: string }) {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               aria-invalid={Boolean(fieldErrors.password)}
-              disabled={isPending}
+              disabled={isPending || disabled}
               required
             />
           </Field>
         </CardBody>
 
         <CardFooter className="flex-col items-stretch gap-3">
-          <Button type="submit" size="lg" disabled={isPending} className="w-full">
+          <Button type="submit" size="lg" disabled={isPending || disabled} className="w-full">
             {isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <LogIn className="size-4" aria-hidden />}
-            {isPending ? "در حال ورود…" : "ورود"}
+            {disabled ? "ابتدا پایگاه داده را بسازید" : isPending ? "در حال ورود…" : "ورود"}
           </Button>
 
           <p className="text-center text-sm text-slate-500">

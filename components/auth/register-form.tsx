@@ -20,7 +20,15 @@ import type { ApiResult } from "@/types";
  * اعتبارسنجی و گذرواژه را هش می‌کند)، سپس کاربر بی‌درنگ وارد برنامه می‌شود تا
  * یک قدم اضافه برای ورود دوباره نداشته باشد.
  */
-export function RegisterForm() {
+export function RegisterForm({
+  disabled = false,
+  disabledReason,
+}: {
+  /** وقتی پایگاه داده آماده نیست، فرم غیرفعال می‌شود تا خطای مبهم نگیریم. */
+  disabled?: boolean;
+  /** توضیح فارسی دلیل غیرفعال بودن فرم. */
+  disabledReason?: string;
+} = {}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -32,6 +40,12 @@ export function RegisterForm() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (disabled) {
+      setFormError(disabledReason ?? "پایگاه داده آماده نیست؛ ابتدا دستور npm run db:setup را اجرا کنید.");
+      return;
+    }
+
     setFormError(null);
     setFieldErrors({});
 
@@ -100,7 +114,7 @@ export function RegisterForm() {
               value={name}
               onChange={(event) => setName(event.target.value)}
               aria-invalid={Boolean(fieldErrors.name)}
-              disabled={isPending}
+              disabled={isPending || disabled}
               required
             />
           </Field>
@@ -116,7 +130,7 @@ export function RegisterForm() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               aria-invalid={Boolean(fieldErrors.email)}
-              disabled={isPending}
+              disabled={isPending || disabled}
               required
             />
           </Field>
@@ -138,7 +152,7 @@ export function RegisterForm() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               aria-invalid={Boolean(fieldErrors.password)}
-              disabled={isPending}
+              disabled={isPending || disabled}
               required
             />
           </Field>
@@ -154,20 +168,20 @@ export function RegisterForm() {
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
               aria-invalid={Boolean(fieldErrors.confirmPassword)}
-              disabled={isPending}
+              disabled={isPending || disabled}
               required
             />
           </Field>
         </CardBody>
 
         <CardFooter className="flex-col items-stretch gap-3">
-          <Button type="submit" size="lg" disabled={isPending} className="w-full">
+          <Button type="submit" size="lg" disabled={isPending || disabled} className="w-full">
             {isPending ? (
               <Loader2 className="size-4 animate-spin" aria-hidden />
             ) : (
               <UserPlus className="size-4" aria-hidden />
             )}
-            {isPending ? "در حال ساخت حساب…" : "ساخت حساب و ورود"}
+            {disabled ? "ابتدا پایگاه داده را بسازید" : isPending ? "در حال ساخت حساب…" : "ساخت حساب و ورود"}
           </Button>
 
           <p className="text-center text-sm text-slate-500">
