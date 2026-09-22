@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   طراحی پایهٔ TSP (فارسی و راست‌به‌چپ)
+   --------------------------------------------------------------------------- */
+
+@theme {
+  --font-sans: var(--font-vazirmatn), system-ui, "Segoe UI", Tahoma, sans-serif;
+  --color-surface: #f8fafc;
+}
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ارقام و کدها همیشه لاتین و چپ‌به‌راست بمانند تا خواندنشان آسان باشد */
+.numeric {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+}

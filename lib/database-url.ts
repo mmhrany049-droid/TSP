@@ -1,0 +1,27 @@
+import path from "node:path";
+
+/**
+ * آدرس پایگاه داده را از متغیر محیطی `DATABASE_URL` می‌خواند و اگر مسیر نسبی بود،
+ * آن را نسبت به ریشهٔ پروژه به مسیر مطلق تبدیل می‌کند.
+ *
+ * چرا؟ چون آداپتور libSQL مسیرهای نسبی را نسبت به پوشهٔ جاری (cwd) باز می‌کند و
+ * این موضوع می‌تواند باعث ساخته‌شدن چند فایل پایگاه داده در مسیرهای مختلف شود.
+ */
+export function resolveDatabaseUrl(): string {
+  const raw = process.env.DATABASE_URL ?? "file:./prisma/dev.db";
+
+  if (!raw.startsWith("file:")) {
+    return raw;
+  }
+
+  const filePath = raw.slice("file:".length);
+
+  return path.isAbsolute(filePath) ? raw : `file:${path.resolve(process.cwd(), filePath)}`;
+}
+
+/** مسیر فایل پایگاه دادهٔ محلی (فقط برای SQLite؛ در غیر این صورت `null`). */
+export function resolveDatabaseFilePath(): string | null {
+  const url = resolveDatabaseUrl();
+
+  return url.startsWith("file:") ? url.slice("file:".length) : null;
+}

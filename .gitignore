@@ -1,20 +1,46 @@
-# پایگاه داده و داده‌های محلی (باید بیرون از مخزن بمانند)
-data/*.db
-data/*.db-wal
-data/*.db-shm
-data/backups/
-data/assets/
+# وابستگی‌ها
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# پایتون
+# ساخت و خروجی Next.js
+/.next/
+/out/
+/build
+next-env.d.ts
+
+# محیط و کلیدها
+.env
+.env*.local
+
+# پایگاه دادهٔ محلی SQLite (فقط فایل‌های ساخته‌شده)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+/prisma/*.db*
+
+# پشتیبان‌ها
+/backups/
+
+# ابزارها
+*.tsbuildinfo
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# سیستم‌عامل و ویرایشگر
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# پایتون (نسخهٔ قدیمی پروژه در پوشهٔ legacy)
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.mypy_cache/
-
-# سیستم
-.DS_Store
-*.swp
-
-# ویرایشگر
-.vscode/
-.idea/

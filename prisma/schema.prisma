@@ -1,0 +1,370 @@
+// ---------------------------------------------------------------------------
+// TSP v0.2 — سامانه مدیریت تست، مطالعه و آمادگی آزمون
+// مدل داده بر پایهٔ سند TSP_v0.2_docs/03_Data_Model_v0.2.md
+//
+// نکته‌های کلیدی:
+//   ۱. `displayNumber` شمارهٔ نمایشی تست است و یکتا نیست؛ شناسهٔ واقعی همان `id` است.
+//   ۲. `BookNode` محل تست در ساختار کتاب و `Topic` مفهوم آموزشی است؛ این دو جدا هستند.
+//   ۳. هر `QuestionAttempt` یک رکورد تازه است و رکورد قبلی هرگز بازنویسی نمی‌شود.
+//   ۴. `PreviousSolvedEntry` (تست‌های قبلاً حل‌شده) با `QuestionAttempt` یکی نیست.
+//   ۵. سختی ناشر، `isHard` و `isImportant` سه مفهوم جدا هستند.
+//   ۶. آمار همیشه از روی رکوردهای خام محاسبه می‌شود، نه از روی یک فیلد خلاصه.
+//
+// SQLite از نوع enum پشتیبانی نمی‌کند؛ به‌جای آن از String با مقادیر مجاز استفاده شده
+// است. فهرست مقادیر مجاز و برچسب فارسی هرکدام در `lib/constants.ts` تعریف شده‌اند تا
+// تمام برنامه تایپ‌شده بماند.
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+  // کلاینت بدون باینری بومی (Rust-free)؛ پرس‌وجوها با کامپایلر WASM + آداپتور libSQL اجرا می‌شوند
+  engineType = "client"
+}
+
+datasource db {
+  provider = "sqlite"
+  // آدرس از متغیر محیطی DATABASE_URL خوانده می‌شود (.env).
+  // هنگام استفاده از آداپتور راننده، اتصال واقعی توسط `prisma.config.ts` و
+  // `lib/prisma.ts` برقرار می‌شود؛ این مقدار به‌عنوان مرجع مسیر باقی می‌ماند.
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// ۱) User — کاربر برنامه (AuthCore)
+// ---------------------------------------------------------------------------
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  /// گذرواژهٔ هش‌شده (هرگز متن خام ذخیره نمی‌شود)
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  books Book[]
+}
+
+// ---------------------------------------------------------------------------
+// ۲) Book — کتاب و مرجع تست (LibraryManager)
+// ---------------------------------------------------------------------------
+model Book {
+  id        String   @id @default(cuid())
+  title     String
+  /// درس: شیمی، فیزیک، حسابان، هندسه، گسسته…
+  subject   String
+  publisher String?
+  /// پایهٔ تحصیلی: دهم، یازدهم، دوازدهم
+  grade     String?
+  /// رشته: پیش‌فرض «ریاضی-فیزیک»
+  field     String?
+  notes     String?
+  userId    String
+  createdAt DateTime @default(now())
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodes BookNode[]
+  /// حذف کتاب، ساختار و بانک تست همان کتاب را هم پاک می‌کند.
+  questions Question[]
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// ۳) BookNode — ساختار درختی کتاب (فصل، بخش، تست‌های مخلوط، آزمون‌ها)
+// ---------------------------------------------------------------------------
+model BookNode {
+  id     String  @id @default(cuid())
+  bookId String
+  parentId String?
+  /// chapter | section | subsection | mixed_tests | checkup | comprehensive | other
+  nodeType String
+  title    String
+  orderIndex Int @default(0)
+
+  book     Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  /// درخت درون یک کتاب: حذف گره والد، زیرگره‌ها را هم حذف می‌کند.
+  parent   BookNode?  @relation("BookNodeChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children BookNode[] @relation("BookNodeChildren")
+
+  questions Question[]
+
+  @@index([bookId])
+  @@index([parentId])
+}
+
+// ---------------------------------------------------------------------------
+// ۴) Topic — مبحث آموزشی، مستقل از ساختار کتاب (TopicTree)
+// ---------------------------------------------------------------------------
+model Topic {
+  id       String  @id @default(cuid())
+  /// درس مبحث (مستقل از کتاب: می‌تواند تست‌های چند کتاب را پوشش دهد)
+  subject  String
+  parentId String?
+  title    String
+  /// active | archived
+  status   String  @default("active")
+
+  parent   Topic?  @relation("TopicChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children Topic[] @relation("TopicChildren")
+
+  questionTopics QuestionTopic[]
+  teachingRecord TeachingRecord?
+  goals          TeachingGoal[]
+  examTopics     ExamTopic[]
+
+  @@index([parentId])
+  @@index([subject])
+}
+
+// ---------------------------------------------------------------------------
+// ۵) Question — تست (QuestionBank)
+// ---------------------------------------------------------------------------
+model Question {
+  id          String @id @default(cuid())
+  bookId      String
+  /// محل تست در ساختار کتاب — اجباری است (قاعدهٔ ۲)
+  bookNodeId  String
+  /// شمارهٔ نمایشی: یکتا نیست و مثلاً در هر فصل از ۱ شروع می‌شود
+  displayNumber String
+  correctAnswer String
+  /// سختی اعلام‌شدهٔ ناشر (اختیاری) — با isHard کاربر متفاوت است
+  publisherDifficulty String?
+  /// علامت «مهم» از نگاه کاربر
+  isImportant Boolean  @default(false)
+  /// علامت «سخت» از نگاه کاربر
+  isHard      Boolean  @default(false)
+  /// بایگانی نرم: تست حذف نمی‌شود، غیرفعال می‌شود
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  book     Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  bookNode BookNode @relation(fields: [bookNodeId], references: [id], onDelete: Cascade)
+
+  topics          QuestionTopic[]
+  attempts        QuestionAttempt[]
+  previousSolved  PreviousSolvedEntry[]
+  reviewItems     ReviewItem[]
+  examQuestions   ExamQuestion[]
+
+  @@index([bookId])
+  @@index([bookNodeId])
+  /// برای جست‌وجوی سریع شمارهٔ نمایشی درون یک کتاب (یکتا نیست)
+  @@index([bookId, displayNumber])
+}
+
+// ---------------------------------------------------------------------------
+// ۶) QuestionTopic — پیوند چندبه‌چند تست و مبحث
+// ---------------------------------------------------------------------------
+model QuestionTopic {
+  questionId String
+  topicId    String
+  /// primary | secondary | mixed
+  relationType String @default("primary")
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  topic    Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, topicId])
+  @@index([topicId])
+}
+
+// ---------------------------------------------------------------------------
+// ۷) QuestionAttempt — هر بار حل جدید یک رکورد تازه (AttemptTracker)
+// ---------------------------------------------------------------------------
+model QuestionAttempt {
+  id     String  @id @default(cuid())
+  questionId String
+  userAnswer String?
+  /// correct | wrong | unanswered
+  result       String
+  spentSeconds Int?
+  attemptedAt  DateTime @default(now())
+  /// manual | review | exam | import
+  source       String   @default("manual")
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId, attemptedAt])
+  @@index([attemptedAt])
+}
+
+// ---------------------------------------------------------------------------
+// ۸) PreviousSolvedEntry — تست‌هایی که پیش از استفاده از برنامه حل شده‌اند
+// ---------------------------------------------------------------------------
+model PreviousSolvedEntry {
+  id          String   @id @default(cuid())
+  questionId  String
+  userAnswer  String?
+  /// correct | wrong | unanswered
+  result      String
+  note        String?
+  importedAt  DateTime @default(now())
+  /// برچسب دستهٔ ورود داده، مثلاً «ورود اولیه فصل ۱»
+  importBatch String?
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@index([importedAt])
+}
+
+// ---------------------------------------------------------------------------
+// ۹) TeachingRecord — وضعیت تدریس هر مبحث (TeachingProgress)
+// ---------------------------------------------------------------------------
+model TeachingRecord {
+  id           String    @id @default(cuid())
+  /// هر مبحث فقط یک وضعیت جاری دارد (یک‌به‌یک)
+  topicId      String    @unique
+  /// not_taught | taught | reviewed
+  taughtStatus String    @default("not_taught")
+  taughtAt     DateTime?
+  notes        String?
+
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// ۱۰) TeachingGoal — هدف تعداد تست برای یک مبحث در یک بازهٔ زمانی
+// ---------------------------------------------------------------------------
+model TeachingGoal {
+  id          String    @id @default(cuid())
+  topicId     String
+  targetCount Int
+  /// بازه اختیاری است؛ نبودن آن یعنی هدف بدون محدودیت زمانی
+  periodStart DateTime?
+  periodEnd   DateTime?
+  notes       String?
+
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([topicId])
+}
+
+// ---------------------------------------------------------------------------
+// ۱۱) Exam — تعریف آزمون (ExamCenter)
+// ---------------------------------------------------------------------------
+model Exam {
+  id          String    @id @default(cuid())
+  title       String
+  /// single_subject | multi_subject | mock | checkup
+  examType    String    @default("single_subject")
+  plannedDate DateTime?
+  notes       String?
+  createdAt   DateTime  @default(now())
+
+  topics    ExamTopic[]
+  questions ExamQuestion[]
+  attempts  ExamAttempt[]
+
+  @@index([plannedDate])
+}
+
+// ---------------------------------------------------------------------------
+// ۱۲) ExamTopic — مباحثی که یک آزمون از آن‌ها سؤال دارد
+// ---------------------------------------------------------------------------
+model ExamTopic {
+  examId  String
+  topicId String
+
+  exam  Exam  @relation(fields: [examId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([examId, topicId])
+  @@index([topicId])
+}
+
+// ---------------------------------------------------------------------------
+// ۱۳) ExamQuestion — سؤال‌های یک آزمون (از بانک تست یا دستی)
+// ---------------------------------------------------------------------------
+model ExamQuestion {
+  id         String @id @default(cuid())
+  examId     String
+  /// اگر سؤال از بانک تست آمده باشد؛ در سؤال دستی خالی است
+  questionId String?
+  orderIndex Int    @default(0)
+  /// پاسخ صحیح سؤال در همین آزمون (ممکن است با بانک تفاوت داشته باشد)
+  correctAnswer String?
+
+  exam     Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  /// با حذف تست بانک، سؤال آزمون پاک نمی‌شود؛ فقط پیوندش خالی می‌شود.
+  question Question? @relation(fields: [questionId], references: [id], onDelete: SetNull)
+
+  answers ExamAnswer[]
+
+  @@index([examId, orderIndex])
+  @@index([questionId])
+}
+
+// ---------------------------------------------------------------------------
+// ۱۴) ExamAttempt — هر اجرای مستقل آزمون (یک آزمون می‌تواند چند اجرا داشته باشد)
+// ---------------------------------------------------------------------------
+model ExamAttempt {
+  id        String    @id @default(cuid())
+  examId    String
+  startedAt DateTime  @default(now())
+  finishedAt DateTime?
+  /// خلاصهٔ امتیاز به شکل JSON (مثلاً تعداد درست/غلط/نزده).
+  /// اعداد نهایی همیشه از روی ExamAnswer محاسبه می‌شوند (قاعدهٔ ۷).
+  scoreSummary String?
+
+  exam    Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  answers ExamAnswer[]
+
+  @@index([examId, startedAt])
+}
+
+// ---------------------------------------------------------------------------
+// ۱۵) ExamAnswer — پاسخ‌های هر اجرای آزمون
+// ---------------------------------------------------------------------------
+model ExamAnswer {
+  id             String @id @default(cuid())
+  examAttemptId  String
+  examQuestionId String
+  userAnswer     String?
+  /// correct | wrong | unanswered
+  result       String
+  spentSeconds Int?
+
+  attempt      ExamAttempt  @relation(fields: [examAttemptId], references: [id], onDelete: Cascade)
+  examQuestion ExamQuestion @relation(fields: [examQuestionId], references: [id], onDelete: Cascade)
+
+  /// در هر اجرا، برای هر سؤال فقط یک پاسخ ثبت می‌شود
+  @@unique([examAttemptId, examQuestionId])
+  @@index([examQuestionId])
+}
+
+// ---------------------------------------------------------------------------
+// ۱۶) FutureExamPlan — برنامهٔ آزمون‌های پیش‌رو و مباحث انتخاب‌شده
+// ---------------------------------------------------------------------------
+model FutureExamPlan {
+  id        String    @id @default(cuid())
+  title     String
+  plannedDate DateTime?
+  /// شناسهٔ مباحث انتخاب‌شده به شکل آرایهٔ JSON
+  /// (SQLite آرایه پشتیبانی نمی‌کند؛ در PostgreSQL به String[] ارتقا می‌یابد)
+  selectedTopicIds String @default("[]")
+  readinessEstimate Float?
+  notes     String?
+  createdAt DateTime  @default(now())
+
+  @@index([plannedDate])
+}
+
+// ---------------------------------------------------------------------------
+// ۱۷) ReviewItem — موردهای مرور هوشمند (SmartReview)
+// ---------------------------------------------------------------------------
+model ReviewItem {
+  id         String @id @default(cuid())
+  questionId String
+  /// آرایهٔ JSON از دلایل: wrong | unanswered | important | hard | backlog | exam_related
+  reasons String
+  priority Int    @default(0)
+  /// pending | done
+  status   String @default("pending")
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([status, priority])
+  @@index([questionId])
+}
