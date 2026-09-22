@@ -68,11 +68,10 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 | `npm run lint` | بررسی کد با ESLint |
 | `npm run typecheck` | بررسی نوع‌ها با TypeScript |
 | `npm run test:unit` | آزمون‌های واحد (تاریخ شمسی، اعتبارسنجی فرم‌ها، ابزارهای امنیتی) |
-| `npm run db:setup` | ساخت/هم‌گام‌سازی پایگاه داده + تولید کلاینت |
-| `npm run db:deploy` | اعمال مهاجرت‌های موجود (محیط واقعی) |
-| `npm run db:reset` | پاک‌کردن پایگاه دادهٔ محلی و ساخت دوبارهٔ آن |
-| `npm run db:push` | هم‌گام‌سازی مستقیم schema با پایگاه داده |
-| `npm run db:studio` | مرور داده‌ها با Prisma Studio |
+
+> **نکته:** پیش از اجرای `npm run build` سرور توسعه را ببندید؛ هر دو از پوشهٔ `‎.next‎`
+> استفاده می‌کنند و ساخت نسخهٔ نهایی، فایل‌های سرور در حال اجرا را بازنویسی می‌کند.
+
 
 ### ساخت مهاجرت تازه
 
