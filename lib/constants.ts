@@ -30,6 +30,25 @@ export const BOOK_NODE_TYPES = labels(
 
 export type BookNodeType = (typeof BOOK_NODE_TYPES.values)[number];
 
+/** برچسب فارسی هر نوع گره (میان‌بر برای رابط کاربری). */
+export const BOOK_NODE_TYPE_LABELS = BOOK_NODE_TYPES.labels;
+
+// ---------------------------------------------------------------------------
+// تست
+// ---------------------------------------------------------------------------
+
+/**
+ * سختی اعلام‌شدهٔ ناشر — **کاملاً جدا** از `isHard` و `isImportant` کاربر
+ * (قاعدهٔ ۶ سند مدل داده). مقدار اختیاری است و فقط برای فیلترکردن به کار می‌رود.
+ */
+export const PUBLISHER_DIFFICULTIES = labels(["easy", "medium", "hard"] as const, {
+  easy: "آسان",
+  medium: "متوسط",
+  hard: "سخت",
+});
+
+export type PublisherDifficulty = (typeof PUBLISHER_DIFFICULTIES.values)[number];
+
 // ---------------------------------------------------------------------------
 // مبحث
 // ---------------------------------------------------------------------------
