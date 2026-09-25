@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin:0; background:#f7f8f4; color:#18281f; font-family:Tahoma, Arial, sans-serif; }
+button,input,select,textarea { font:inherit; }
+::selection { background:#d3ead9; }
+.card { @apply rounded-2xl border border-[#e6ebe5] bg-white shadow-soft; }
+.field { @apply w-full rounded-xl border border-[#dce4dc] bg-white px-3 py-2.5 text-sm outline-none transition focus:border-forest focus:ring-2 focus:ring-[#dcefe2]; }
+.btn { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-forest px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#18533d] disabled:opacity-50; }
+.btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-[#dce4dc] bg-white px-4 py-2.5 text-sm font-bold text-ink transition hover:bg-mint; }

@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+backend/tsp.db
+backend/*.db
+backend/uploads/
+# Node / Next
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+# OS / editor
+.DS_Store
+.vscode/
